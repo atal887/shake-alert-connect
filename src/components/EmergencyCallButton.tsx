@@ -19,6 +19,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
   const [callInProgress, setCallInProgress] = useState(false);
   const { toast } = useToast();
 
+  // Check if device is mobile
   useEffect(() => {
     const checkMobile = () => {
       return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -26,6 +27,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     setIsMobile(checkMobile());
   }, []);
 
+  // Initialize shake detector
   useEffect(() => {
     const detector = new ShakeDetector(handleShakeDetected, {
       threshold: 12,
@@ -39,6 +41,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     };
   }, []);
 
+  // Control shake detector based on settings
   useEffect(() => {
     if (shakeDetector) {
       if (isShakeEnabled && !callInProgress) {
@@ -57,6 +60,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     };
   }, [isShakeEnabled, shakeDetector, callInProgress]);
 
+  // Handle countdown timer
   useEffect(() => {
     let timer: number | null = null;
     
@@ -101,16 +105,27 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
 
   const makeEmergencyCall = () => {
     // Prevent multiple calls being triggered
-    if (callInProgress) return;
+    if (callInProgress) {
+      console.log('Call already in progress, preventing duplicate call');
+      return;
+    }
     
     const contact = getPrimaryContact();
     
     if (!contact) {
       setIsActivated(false);
+      toast({
+        title: "Error",
+        description: "No emergency contact found",
+        variant: "destructive", 
+      });
       return;
     }
     
     setCallInProgress(true);
+    
+    // Format phone number - remove spaces, hyphens, and parentheses
+    const formattedNumber = contact.phoneNumber.replace(/[\s()-]/g, '');
     
     toast({
       title: "Emergency call initiated",
@@ -119,32 +134,41 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     });
     
     try {
+      // Create phone call link
       const callLink = document.createElement('a');
-      callLink.href = `tel:${contact.phoneNumber.replace(/\s+/g, '')}`;
+      callLink.href = `tel:${formattedNumber}`;
       callLink.setAttribute('rel', 'noopener noreferrer');
+      
+      // Append to body temporarily
       document.body.appendChild(callLink);
       
-      // One-time click with proper cleanup
+      // Click link to initiate call and remove from DOM
       callLink.click();
       document.body.removeChild(callLink);
       
-      // Reset after a reasonable delay to prevent immediate re-triggering
+      // Reset activation state after a delay
       setTimeout(() => {
         setIsActivated(false);
         
         // Add a longer delay before allowing new calls
         setTimeout(() => {
           setCallInProgress(false);
-        }, 3000);
+        }, 5000); // Increased cooldown period
       }, 1000);
     } catch (error) {
       console.error("Error making emergency call:", error);
+      
+      // Reset states on error
       setIsActivated(false);
-      setCallInProgress(false);
+      
+      // Add small delay before allowing new calls
+      setTimeout(() => {
+        setCallInProgress(false);
+      }, 2000);
       
       toast({
-        title: "Error making emergency call",
-        description: "There was a problem initiating the call. Please try again.",
+        title: "Call error",
+        description: "There was a problem initiating the call. Please try again or dial manually.",
         variant: "destructive",
       });
     }
@@ -157,7 +181,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     // Add a small delay before allowing new calls
     setTimeout(() => {
       setCallInProgress(false);
-    }, 1000);
+    }, 2000);
     
     toast({
       title: "Emergency call canceled",
@@ -166,9 +190,33 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
   };
 
   const simulateShake = () => {
-    if (shakeDetector && !callInProgress) {
+    if (shakeDetector && !callInProgress && !isActivated) {
       shakeDetector.simulateShake();
     }
+  };
+
+  // Manual call function as a backup
+  const manualCall = () => {
+    const contact = getPrimaryContact();
+    if (!contact) {
+      toast({
+        title: "No emergency contact found",
+        description: "Please add an emergency contact in settings",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Format phone number
+    const formattedNumber = contact.phoneNumber.replace(/[\s()-]/g, '');
+    
+    // Open in new tab/window to ensure it works
+    window.open(`tel:${formattedNumber}`, '_blank');
+    
+    toast({
+      title: "Manual call initiated",
+      description: `Calling ${contact.name}`,
+    });
   };
 
   return (
@@ -207,16 +255,28 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
           </Button>
         </div>
       ) : (
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center gap-3">
           <Button 
             variant="destructive" 
             size="lg" 
-            className="w-full py-8 text-xl mb-4"
+            className="w-full py-8 text-xl"
             onClick={simulateShake}
-            disabled={callInProgress}
+            disabled={callInProgress || isActivated}
           >
             <Phone className="mr-2 h-6 w-6" />
             {callInProgress ? "Call in Progress..." : "Trigger Emergency Call"}
+          </Button>
+          
+          {/* Additional manual call button as backup */}
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="w-full"
+            onClick={manualCall}
+            disabled={callInProgress || isActivated}
+          >
+            <Phone className="mr-2 h-4 w-4" />
+            Manual Call (Backup)
           </Button>
           
           {isShakeEnabled ? (
