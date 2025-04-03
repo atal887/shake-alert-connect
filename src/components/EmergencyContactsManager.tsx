@@ -65,15 +65,26 @@ const EmergencyContactsManager: React.FC = () => {
       return;
     }
     
-    // Basic phone number validation
-    const phonePattern = /^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/;
-    if (!phonePattern.test(newPhone)) {
+    // Indian phone number validation
+    // Valid formats: +91xxxxxxxxxx, 91xxxxxxxxxx, or plain 10 digits
+    const indianPhonePattern = /^(?:(?:\+|0{0,2})91(\s*[-]\s*)?|[0]?)?[6789]\d{9}$/;
+    if (!indianPhonePattern.test(newPhone)) {
       toast({
-        title: "Invalid phone number",
-        description: "Please enter a valid phone number",
+        title: "Invalid Indian phone number",
+        description: "Please enter a valid Indian phone number (10 digits starting with 6, 7, 8, or 9, with optional +91 prefix)",
         variant: "destructive",
       });
       return;
+    }
+    
+    // Format the phone number to ensure it has the +91 prefix for calling
+    let formattedPhone = newPhone;
+    if (!formattedPhone.startsWith('+')) {
+      if (formattedPhone.startsWith('91')) {
+        formattedPhone = '+' + formattedPhone;
+      } else {
+        formattedPhone = '+91' + formattedPhone.replace(/^0/, '');
+      }
     }
     
     if (editingContact) {
@@ -81,7 +92,7 @@ const EmergencyContactsManager: React.FC = () => {
       const updated = {
         ...editingContact,
         name: newName,
-        phoneNumber: newPhone,
+        phoneNumber: formattedPhone,
         isPrimary: newIsPrimary,
       };
       updateEmergencyContact(updated);
@@ -93,7 +104,7 @@ const EmergencyContactsManager: React.FC = () => {
       // Add new contact
       addEmergencyContact({
         name: newName,
-        phoneNumber: newPhone,
+        phoneNumber: formattedPhone,
         isPrimary: newIsPrimary,
       });
       toast({
@@ -264,9 +275,12 @@ const EmergencyContactsManager: React.FC = () => {
                     id="phone"
                     value={newPhone}
                     onChange={(e) => setNewPhone(e.target.value)}
-                    placeholder="+1 (555) 123-4567"
+                    placeholder="+91 9876543210"
                     type="tel"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Enter a valid Indian mobile number (e.g., 9876543210 or +91 9876543210)
+                  </p>
                 </div>
                 <div className="flex items-center space-x-2 pt-2">
                   <Checkbox

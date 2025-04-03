@@ -1,6 +1,7 @@
 
 /**
  * Shake detection utility based on device accelerometer
+ * Optimized for mobile devices, especially for emergency applications
  */
 type ShakeCallback = () => void;
 
@@ -19,10 +20,12 @@ export class ShakeDetector {
   private threshold: number;
   private timeout: number;
   private isListening: boolean = false;
+  private consecutiveShakes: number = 0;
+  private requiredShakes: number = 2; // Require at least 2 consecutive shakes
 
   constructor(onShake: ShakeCallback, options: ShakeOptions = {}) {
     this.onShake = onShake;
-    this.threshold = options.threshold || 15; // Default threshold
+    this.threshold = options.threshold || 12; // Lowered default threshold for better sensitivity
     this.timeout = options.timeout || 1000; // Default timeout between shakes
     
     this.handleMotion = this.handleMotion.bind(this);
@@ -32,9 +35,31 @@ export class ShakeDetector {
     if (this.isListening) return;
     
     if (window.DeviceMotionEvent) {
-      window.addEventListener('devicemotion', this.handleMotion, false);
-      this.isListening = true;
-      console.log('Shake detection started');
+      // Request permission for iOS devices (iOS 13+)
+      if (typeof DeviceMotionEvent.requestPermission === 'function') {
+        DeviceMotionEvent.requestPermission()
+          .then(response => {
+            if (response === 'granted') {
+              window.addEventListener('devicemotion', this.handleMotion, false);
+              this.isListening = true;
+              console.log('Shake detection started with permission');
+            } else {
+              console.warn('Device motion permission denied');
+            }
+          })
+          .catch(error => {
+            console.error('Error requesting device motion permission:', error);
+            // Fallback to try anyway - might work on non-iOS or older iOS
+            window.addEventListener('devicemotion', this.handleMotion, false);
+            this.isListening = true;
+            console.log('Shake detection started without explicit permission');
+          });
+      } else {
+        // For non-iOS devices that don't require permission
+        window.addEventListener('devicemotion', this.handleMotion, false);
+        this.isListening = true;
+        console.log('Shake detection started');
+      }
     } else {
       console.warn('Device motion not supported on this device');
     }
@@ -45,6 +70,7 @@ export class ShakeDetector {
     
     window.removeEventListener('devicemotion', this.handleMotion);
     this.isListening = false;
+    this.consecutiveShakes = 0;
     
     if (this.shakeTimeout !== null) {
       clearTimeout(this.shakeTimeout);
@@ -80,21 +106,35 @@ export class ShakeDetector {
       const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ) / deltaTime * 10000;
       
       if (speed > this.threshold) {
-        // Prevent multiple shakes
-        if (this.shakeTimeout !== null) return;
+        console.log('Shake detected with speed:', speed);
         
-        // Trigger shake event
-        this.onShake();
+        // Increment consecutive shakes counter
+        this.consecutiveShakes++;
         
-        this.shakeTimeout = window.setTimeout(() => {
-          this.shakeTimeout = null;
-        }, this.timeout);
+        // If we've detected enough consecutive shakes or a very strong shake
+        if (this.consecutiveShakes >= this.requiredShakes || speed > this.threshold * 2) {
+          // Prevent multiple triggers
+          if (this.shakeTimeout !== null) return;
+          
+          // Trigger shake event
+          this.onShake();
+          this.consecutiveShakes = 0;
+          
+          this.shakeTimeout = window.setTimeout(() => {
+            this.shakeTimeout = null;
+          }, this.timeout);
+        }
+        
+        // Reset consecutive shakes after a timeout
+        setTimeout(() => {
+          this.consecutiveShakes = 0;
+        }, 2000);
       }
     }
   }
 
   // For browsers/devices that don't support device motion
-  // Simulates shake for testing
+  // Simulates shake for testing or triggers from button presses
   simulateShake(): void {
     this.onShake();
   }

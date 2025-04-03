@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { ShakeDetector } from '@/utils/shakeDetection';
 import { getPrimaryContact } from '@/utils/emergencyContacts';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 interface EmergencyCallButtonProps {
   isShakeEnabled: boolean;
@@ -14,13 +15,22 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
   const [isActivated, setIsActivated] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [shakeDetector, setShakeDetector] = useState<ShakeDetector | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
   const { toast } = useToast();
+
+  // Check if we're on a mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    };
+    setIsMobile(checkMobile());
+  }, []);
 
   // Initialize shake detector
   useEffect(() => {
     const detector = new ShakeDetector(handleShakeDetected, {
-      threshold: 15,
-      timeout: 2000,
+      threshold: 12, // Lower threshold to make it more sensitive
+      timeout: 1000,  // Shorter timeout between detections
     });
     
     setShakeDetector(detector);
@@ -35,8 +45,10 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     if (shakeDetector) {
       if (isShakeEnabled) {
         shakeDetector.start();
+        console.log('Shake detection started');
       } else {
         shakeDetector.stop();
+        console.log('Shake detection stopped');
       }
     }
     
@@ -109,7 +121,9 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     window.location.href = `tel:${contact.phoneNumber}`;
     
     // Reset state after call is initiated
-    setIsActivated(false);
+    setTimeout(() => {
+      setIsActivated(false);
+    }, 1000);
   };
 
   const cancelEmergencyCall = () => {
@@ -130,6 +144,15 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
 
   return (
     <div className="relative">
+      {!isMobile && (
+        <Alert className="mb-4 border-amber-200 bg-amber-50 text-amber-800">
+          <AlertTitle>Mobile Device Required</AlertTitle>
+          <AlertDescription>
+            Shake detection works best on mobile devices. Please open this app on your mobile phone for the full experience.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       {isActivated ? (
         <div className="flex flex-col items-center">
           <div className={`text-4xl font-bold mb-4 text-emergency animate-pulse-emergency`}>
@@ -159,7 +182,11 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
           
           {isShakeEnabled ? (
             <p className="text-sm text-muted-foreground">
-              Shake your device to trigger an emergency call
+              {isMobile ? (
+                "Shake your device vigorously to trigger an emergency call"
+              ) : (
+                "Shake detection is enabled. For best results, use a mobile device."
+              )}
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">
