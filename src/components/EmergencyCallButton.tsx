@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Phone, PhoneOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
   const [countdown, setCountdown] = useState(0);
   const [shakeDetector, setShakeDetector] = useState<ShakeDetector | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [callInProgress, setCallInProgress] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -39,7 +41,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
 
   useEffect(() => {
     if (shakeDetector) {
-      if (isShakeEnabled) {
+      if (isShakeEnabled && !callInProgress) {
         shakeDetector.start();
         console.log('Shake detection started');
       } else {
@@ -53,7 +55,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
         shakeDetector.stop();
       }
     };
-  }, [isShakeEnabled, shakeDetector]);
+  }, [isShakeEnabled, shakeDetector, callInProgress]);
 
   useEffect(() => {
     let timer: number | null = null;
@@ -62,7 +64,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
       timer = window.setTimeout(() => {
         setCountdown(countdown - 1);
       }, 1000);
-    } else if (isActivated && countdown === 0) {
+    } else if (isActivated && countdown === 0 && !callInProgress) {
       makeEmergencyCall();
     }
     
@@ -71,10 +73,10 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
         clearTimeout(timer);
       }
     };
-  }, [isActivated, countdown]);
+  }, [isActivated, countdown, callInProgress]);
 
   const handleShakeDetected = () => {
-    if (isActivated) return;
+    if (isActivated || callInProgress) return;
     
     const contact = getPrimaryContact();
     
@@ -98,6 +100,9 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
   };
 
   const makeEmergencyCall = () => {
+    // Prevent multiple calls being triggered
+    if (callInProgress) return;
+    
     const contact = getPrimaryContact();
     
     if (!contact) {
@@ -105,30 +110,54 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
       return;
     }
     
+    setCallInProgress(true);
+    
     toast({
       title: "Emergency call initiated",
       description: `Calling ${contact.name} at ${contact.phoneNumber}`,
       variant: "destructive",
     });
     
-    const callLink = document.createElement('a');
-    callLink.href = `tel:${contact.phoneNumber.replace(/\s+/g, '')}`;
-    callLink.setAttribute('rel', 'noopener noreferrer');
-    document.body.appendChild(callLink);
-    
-    setTimeout(() => {
+    try {
+      const callLink = document.createElement('a');
+      callLink.href = `tel:${contact.phoneNumber.replace(/\s+/g, '')}`;
+      callLink.setAttribute('rel', 'noopener noreferrer');
+      document.body.appendChild(callLink);
+      
+      // One-time click with proper cleanup
       callLink.click();
       document.body.removeChild(callLink);
       
+      // Reset after a reasonable delay to prevent immediate re-triggering
       setTimeout(() => {
         setIsActivated(false);
+        
+        // Add a longer delay before allowing new calls
+        setTimeout(() => {
+          setCallInProgress(false);
+        }, 3000);
       }, 1000);
-    }, 100);
+    } catch (error) {
+      console.error("Error making emergency call:", error);
+      setIsActivated(false);
+      setCallInProgress(false);
+      
+      toast({
+        title: "Error making emergency call",
+        description: "There was a problem initiating the call. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const cancelEmergencyCall = () => {
     setIsActivated(false);
     setCountdown(0);
+    
+    // Add a small delay before allowing new calls
+    setTimeout(() => {
+      setCallInProgress(false);
+    }, 1000);
     
     toast({
       title: "Emergency call canceled",
@@ -137,7 +166,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
   };
 
   const simulateShake = () => {
-    if (shakeDetector) {
+    if (shakeDetector && !callInProgress) {
       shakeDetector.simulateShake();
     }
   };
@@ -149,6 +178,15 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
           <AlertTitle>Mobile Device Required</AlertTitle>
           <AlertDescription>
             Shake detection works best on mobile devices. Please open this app on your mobile phone for the full experience.
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      {callInProgress && !isActivated && (
+        <Alert className="mb-4 border-blue-200 bg-blue-50 text-blue-800">
+          <AlertTitle>Call in Progress</AlertTitle>
+          <AlertDescription>
+            Emergency call function is cooling down. Please wait a moment before trying again.
           </AlertDescription>
         </Alert>
       )}
@@ -175,14 +213,17 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
             size="lg" 
             className="w-full py-8 text-xl mb-4"
             onClick={simulateShake}
+            disabled={callInProgress}
           >
             <Phone className="mr-2 h-6 w-6" />
-            Trigger Emergency Call
+            {callInProgress ? "Call in Progress..." : "Trigger Emergency Call"}
           </Button>
           
           {isShakeEnabled ? (
             <p className="text-sm text-muted-foreground">
               {isMobile ? (
+                callInProgress ? 
+                "Please wait a moment before triggering another call." :
                 "Shake your device vigorously to trigger an emergency call"
               ) : (
                 "Shake detection is enabled. For best results, use a mobile device."
