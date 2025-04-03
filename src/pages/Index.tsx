@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Shield, User, Sliders, Info } from 'lucide-react';
+import { Shield, User, Sliders, Info, AlertTriangle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import EmergencyCallButton from '@/components/EmergencyCallButton';
 import EmergencyContactsManager from '@/components/EmergencyContactsManager';
