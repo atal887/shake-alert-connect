@@ -3,6 +3,19 @@
  * Shake detection utility based on device accelerometer
  * Optimized for mobile devices, especially for emergency applications
  */
+
+// Add a declaration for the iOS-specific DeviceMotionEvent interface
+interface DeviceMotionEventIOS extends DeviceMotionEvent {
+  requestPermission?: () => Promise<string>;
+}
+
+// Add a declaration for the constructor
+interface DeviceMotionEventIOSConstructor {
+  new(type: string, eventInitDict?: DeviceMotionEventInit): DeviceMotionEvent;
+  prototype: DeviceMotionEvent;
+  requestPermission?: () => Promise<string>;
+}
+
 type ShakeCallback = () => void;
 
 interface ShakeOptions {
@@ -35,9 +48,12 @@ export class ShakeDetector {
     if (this.isListening) return;
     
     if (window.DeviceMotionEvent) {
+      // Cast to our extended interface
+      const DeviceMotionEventIOS = window.DeviceMotionEvent as unknown as DeviceMotionEventIOSConstructor;
+      
       // Request permission for iOS devices (iOS 13+)
-      if (typeof DeviceMotionEvent.requestPermission === 'function') {
-        DeviceMotionEvent.requestPermission()
+      if (typeof DeviceMotionEventIOS.requestPermission === 'function') {
+        DeviceMotionEventIOS.requestPermission()
           .then(response => {
             if (response === 'granted') {
               window.addEventListener('devicemotion', this.handleMotion, false);
