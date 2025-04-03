@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Phone, PhoneOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,7 +17,6 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
   const [isMobile, setIsMobile] = useState(false);
   const { toast } = useToast();
 
-  // Check if we're on a mobile device
   useEffect(() => {
     const checkMobile = () => {
       return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -26,11 +24,10 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     setIsMobile(checkMobile());
   }, []);
 
-  // Initialize shake detector
   useEffect(() => {
     const detector = new ShakeDetector(handleShakeDetected, {
-      threshold: 12, // Lower threshold to make it more sensitive
-      timeout: 1000,  // Shorter timeout between detections
+      threshold: 12,
+      timeout: 1000,
     });
     
     setShakeDetector(detector);
@@ -40,7 +37,6 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     };
   }, []);
 
-  // Start/stop shake detection based on settings
   useEffect(() => {
     if (shakeDetector) {
       if (isShakeEnabled) {
@@ -59,7 +55,6 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     };
   }, [isShakeEnabled, shakeDetector]);
 
-  // Handle countdown and call triggering
   useEffect(() => {
     let timer: number | null = null;
     
@@ -79,7 +74,6 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
   }, [isActivated, countdown]);
 
   const handleShakeDetected = () => {
-    // Don't trigger if already in countdown mode
     if (isActivated) return;
     
     const contact = getPrimaryContact();
@@ -117,13 +111,19 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
       variant: "destructive",
     });
     
-    // On mobile devices, this will open the phone dialer
-    window.location.href = `tel:${contact.phoneNumber}`;
+    const callLink = document.createElement('a');
+    callLink.href = `tel:${contact.phoneNumber.replace(/\s+/g, '')}`;
+    callLink.setAttribute('rel', 'noopener noreferrer');
+    document.body.appendChild(callLink);
     
-    // Reset state after call is initiated
     setTimeout(() => {
-      setIsActivated(false);
-    }, 1000);
+      callLink.click();
+      document.body.removeChild(callLink);
+      
+      setTimeout(() => {
+        setIsActivated(false);
+      }, 1000);
+    }, 100);
   };
 
   const cancelEmergencyCall = () => {

@@ -35,10 +35,11 @@ export class ShakeDetector {
   private isListening: boolean = false;
   private consecutiveShakes: number = 0;
   private requiredShakes: number = 2; // Require at least 2 consecutive shakes
+  private permissionGranted: boolean = false;
 
   constructor(onShake: ShakeCallback, options: ShakeOptions = {}) {
     this.onShake = onShake;
-    this.threshold = options.threshold || 12; // Lowered default threshold for better sensitivity
+    this.threshold = options.threshold || 10; // Adjusted threshold for better sensitivity
     this.timeout = options.timeout || 1000; // Default timeout between shakes
     
     this.handleMotion = this.handleMotion.bind(this);
@@ -56,6 +57,7 @@ export class ShakeDetector {
         DeviceMotionEventIOS.requestPermission()
           .then(response => {
             if (response === 'granted') {
+              this.permissionGranted = true;
               window.addEventListener('devicemotion', this.handleMotion, false);
               this.isListening = true;
               console.log('Shake detection started with permission');
@@ -65,16 +67,24 @@ export class ShakeDetector {
           })
           .catch(error => {
             console.error('Error requesting device motion permission:', error);
-            // Fallback to try anyway - might work on non-iOS or older iOS
-            window.addEventListener('devicemotion', this.handleMotion, false);
-            this.isListening = true;
-            console.log('Shake detection started without explicit permission');
+            // Try fallback method - might work on some devices
+            try {
+              window.addEventListener('devicemotion', this.handleMotion, false);
+              this.isListening = true;
+              console.log('Shake detection started without explicit permission');
+            } catch (e) {
+              console.error('Failed to start motion detection:', e);
+            }
           });
       } else {
         // For non-iOS devices that don't require permission
-        window.addEventListener('devicemotion', this.handleMotion, false);
-        this.isListening = true;
-        console.log('Shake detection started');
+        try {
+          window.addEventListener('devicemotion', this.handleMotion, false);
+          this.isListening = true;
+          console.log('Shake detection started');
+        } catch (error) {
+          console.error('Error starting shake detection:', error);
+        }
       }
     } else {
       console.warn('Device motion not supported on this device');
@@ -84,7 +94,12 @@ export class ShakeDetector {
   stop(): void {
     if (!this.isListening) return;
     
-    window.removeEventListener('devicemotion', this.handleMotion);
+    try {
+      window.removeEventListener('devicemotion', this.handleMotion);
+    } catch (error) {
+      console.error('Error removing device motion listener:', error);
+    }
+    
     this.isListening = false;
     this.consecutiveShakes = 0;
     
@@ -99,7 +114,10 @@ export class ShakeDetector {
     const current = Date.now();
     const acceleration = event.accelerationIncludingGravity;
     
-    if (!acceleration) return;
+    if (!acceleration) {
+      console.log('No acceleration data available');
+      return;
+    }
     
     // Only register after enough time has passed
     if ((current - this.lastTime) > 100) {
@@ -122,7 +140,7 @@ export class ShakeDetector {
       const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ) / deltaTime * 10000;
       
       if (speed > this.threshold) {
-        console.log('Shake detected with speed:', speed);
+        console.log('Shake detected with speed:', speed, 'threshold:', this.threshold);
         
         // Increment consecutive shakes counter
         this.consecutiveShakes++;
@@ -131,6 +149,8 @@ export class ShakeDetector {
         if (this.consecutiveShakes >= this.requiredShakes || speed > this.threshold * 2) {
           // Prevent multiple triggers
           if (this.shakeTimeout !== null) return;
+          
+          console.log('Triggering shake callback with speed:', speed);
           
           // Trigger shake event
           this.onShake();
@@ -152,6 +172,12 @@ export class ShakeDetector {
   // For browsers/devices that don't support device motion
   // Simulates shake for testing or triggers from button presses
   simulateShake(): void {
+    console.log('Simulating shake event');
     this.onShake();
+  }
+
+  // Check if permission has been granted
+  isPermissionGranted(): boolean {
+    return this.permissionGranted;
   }
 }
