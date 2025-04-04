@@ -36,17 +36,24 @@ export class ShakeDetector {
   private consecutiveShakes: number = 0;
   private requiredShakes: number = 2; // Require at least 2 consecutive shakes
   private permissionGranted: boolean = false;
+  private debugMode: boolean = true; // Enable debug mode
 
   constructor(onShake: ShakeCallback, options: ShakeOptions = {}) {
     this.onShake = onShake;
-    this.threshold = options.threshold || 10; // Adjusted threshold for better sensitivity
+    this.threshold = options.threshold || 8; // Lower threshold for better sensitivity (was 10)
     this.timeout = options.timeout || 1000; // Default timeout between shakes
     
     this.handleMotion = this.handleMotion.bind(this);
+    
+    if (this.debugMode) {
+      console.log('ShakeDetector initialized with threshold:', this.threshold);
+    }
   }
 
   start(): void {
     if (this.isListening) return;
+    
+    console.log('Starting shake detection with threshold:', this.threshold);
     
     if (window.DeviceMotionEvent) {
       // Cast to our extended interface
@@ -63,6 +70,14 @@ export class ShakeDetector {
               console.log('Shake detection started with permission');
             } else {
               console.warn('Device motion permission denied');
+              // Still try to add the listener - might work on some older iOS devices
+              try {
+                window.addEventListener('devicemotion', this.handleMotion, false);
+                this.isListening = true;
+                console.log('Shake detection started (fallback method)');
+              } catch (e) {
+                console.error('Failed to start motion detection:', e);
+              }
             }
           })
           .catch(error => {
@@ -81,7 +96,7 @@ export class ShakeDetector {
         try {
           window.addEventListener('devicemotion', this.handleMotion, false);
           this.isListening = true;
-          console.log('Shake detection started');
+          console.log('Shake detection started (non-iOS device)');
         } catch (error) {
           console.error('Error starting shake detection:', error);
         }
@@ -96,6 +111,7 @@ export class ShakeDetector {
     
     try {
       window.removeEventListener('devicemotion', this.handleMotion);
+      console.log('Shake detection stopped');
     } catch (error) {
       console.error('Error removing device motion listener:', error);
     }
@@ -107,7 +123,6 @@ export class ShakeDetector {
       clearTimeout(this.shakeTimeout);
       this.shakeTimeout = null;
     }
-    console.log('Shake detection stopped');
   }
 
   private handleMotion(event: DeviceMotionEvent): void {
@@ -115,12 +130,12 @@ export class ShakeDetector {
     const acceleration = event.accelerationIncludingGravity;
     
     if (!acceleration) {
-      console.log('No acceleration data available');
+      if (this.debugMode) console.log('No acceleration data available');
       return;
     }
     
-    // Only register after enough time has passed
-    if ((current - this.lastTime) > 100) {
+    // Only register after enough time has passed (increased sampling rate)
+    if ((current - this.lastTime) > 80) { // Reduced from 100ms to 80ms for better responsiveness
       const deltaTime = current - this.lastTime;
       this.lastTime = current;
       
@@ -132,21 +147,30 @@ export class ShakeDetector {
       const deltaY = Math.abs(this.lastY - y);
       const deltaZ = Math.abs(this.lastZ - z);
       
+      // Log values occasionally for debugging
+      if (this.debugMode && Math.random() < 0.05) {
+        console.log('Motion detected - deltaX:', deltaX, 'deltaY:', deltaY, 'deltaZ:', deltaZ);
+      }
+      
       this.lastX = x;
       this.lastY = y;
       this.lastZ = z;
       
-      // Calculate speed of movement
+      // Calculate speed of movement (adjusted formula for better sensitivity)
       const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ) / deltaTime * 10000;
       
-      if (speed > this.threshold) {
-        console.log('Shake detected with speed:', speed, 'threshold:', this.threshold);
+      // Also detect rapid movement in any single axis
+      const maxAxisChange = Math.max(deltaX, deltaY, deltaZ);
+      const isSingleAxisShake = maxAxisChange > this.threshold / 1.5;
+      
+      if (speed > this.threshold || isSingleAxisShake) {
+        console.log('Shake detected with speed:', speed, 'threshold:', this.threshold, 'maxAxisChange:', maxAxisChange);
         
         // Increment consecutive shakes counter
         this.consecutiveShakes++;
         
         // If we've detected enough consecutive shakes or a very strong shake
-        if (this.consecutiveShakes >= this.requiredShakes || speed > this.threshold * 2) {
+        if (this.consecutiveShakes >= this.requiredShakes || speed > this.threshold * 1.5) {
           // Prevent multiple triggers
           if (this.shakeTimeout !== null) return;
           
@@ -161,10 +185,12 @@ export class ShakeDetector {
           }, this.timeout);
         }
         
-        // Reset consecutive shakes after a timeout
+        // Reset consecutive shakes after a timeout (increased window)
         setTimeout(() => {
-          this.consecutiveShakes = 0;
-        }, 2000);
+          if (this.consecutiveShakes > 0) {
+            this.consecutiveShakes = 0;
+          }
+        }, 2500); // Increased from 2000ms to 2500ms
       }
     }
   }
@@ -179,5 +205,11 @@ export class ShakeDetector {
   // Check if permission has been granted
   isPermissionGranted(): boolean {
     return this.permissionGranted;
+  }
+  
+  // Adjust threshold dynamically
+  setThreshold(threshold: number): void {
+    console.log('Setting shake threshold to:', threshold);
+    this.threshold = threshold;
   }
 }

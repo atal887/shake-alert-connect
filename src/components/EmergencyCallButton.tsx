@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Phone, PhoneOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,7 +21,6 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
   const callLinkRef = useRef<HTMLAnchorElement | null>(null);
   const { toast } = useToast();
   
-  // Check if device is mobile
   useEffect(() => {
     const checkMobile = () => {
       return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -30,7 +28,6 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     setIsMobile(checkMobile());
   }, []);
 
-  // Cleanup function to clear any pending timeouts
   useEffect(() => {
     return () => {
       if (callTimeoutRef.current) {
@@ -40,10 +37,9 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     };
   }, []);
 
-  // Initialize shake detector
   useEffect(() => {
     const detector = new ShakeDetector(handleShakeDetected, {
-      threshold: 12,
+      threshold: 8,
       timeout: 1000,
     });
     
@@ -54,7 +50,6 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     };
   }, []);
 
-  // Control shake detector based on settings
   useEffect(() => {
     if (shakeDetector) {
       if (isShakeEnabled && !callInProgress && !isActivated) {
@@ -73,7 +68,6 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     };
   }, [isShakeEnabled, shakeDetector, callInProgress, isActivated]);
 
-  // Handle countdown timer
   useEffect(() => {
     let timer: number | null = null;
     
@@ -92,7 +86,6 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     };
   }, [isActivated, countdown, callInProgress]);
 
-  // Create a persistent hidden call link element
   useEffect(() => {
     const link = document.createElement('a');
     link.setAttribute('rel', 'noopener noreferrer');
@@ -108,7 +101,6 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
   }, []);
 
   const handleShakeDetected = () => {
-    // Multiple safeguards against repeated activation
     if (isActivated || callInProgress) {
       console.log('Ignoring shake - already activated or call in progress');
       return;
@@ -138,7 +130,6 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
   };
 
   const makeEmergencyCall = () => {
-    // Multiple checks to prevent repeated calls
     if (callInProgress || callTimeoutRef.current) {
       console.log('Call already in progress or cooldown active, preventing duplicate call');
       return;
@@ -157,10 +148,8 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
       return;
     }
     
-    // Set call in progress flag immediately to prevent multiple calls
     setCallInProgress(true);
     
-    // Format phone number - remove spaces, hyphens, and parentheses
     const formattedNumber = contact.phoneNumber.replace(/[\s()-]/g, '');
     
     toast({
@@ -170,47 +159,37 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     });
     speak(`Calling emergency contact ${contact.name}`);
     
-    // Use multiple approaches to maximize call reliability 
     try {
-      // First approach: Use the persistent link element
       if (callLinkRef.current) {
         callLinkRef.current.href = `tel:${formattedNumber}`;
         
-        // Force a small delay before clicking to ensure DOM updates
         setTimeout(() => {
           if (callLinkRef.current) {
             callLinkRef.current.click();
           }
         }, 100);
       } else {
-        // Fallback: direct approach
         window.location.href = `tel:${formattedNumber}`;
       }
       
-      // Second approach: Create iframe as additional fallback
       const callFrame = document.createElement('iframe');
       callFrame.style.display = 'none';
       document.body.appendChild(callFrame);
       callFrame.src = `tel:${formattedNumber}`;
       
-      // Remove the frame after a delay
       setTimeout(() => {
         document.body.removeChild(callFrame);
       }, 2000);
       
-      // Add a longer lockout period to prevent repeated calls
-      // Use the ref to store the timeout ID so we can clear it if needed
       callTimeoutRef.current = window.setTimeout(() => {
         setIsActivated(false);
         setCallInProgress(false);
         callTimeoutRef.current = null;
         console.log('Call cooldown period completed');
-      }, 15000); // 15 second cooldown
-      
+      }, 15000);
     } catch (error) {
       console.error("Error making emergency call:", error);
       
-      // Reset states on error with a delay
       setTimeout(() => {
         setIsActivated(false);
         setCallInProgress(false);
@@ -226,7 +205,6 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
   };
 
   const cancelEmergencyCall = () => {
-    // Clear any existing timeout
     if (callTimeoutRef.current) {
       window.clearTimeout(callTimeoutRef.current);
       callTimeoutRef.current = null;
@@ -235,7 +213,6 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     setIsActivated(false);
     setCountdown(0);
     
-    // Short cooldown after cancellation to prevent immediate reactivation
     setCallInProgress(true);
     setTimeout(() => {
       setCallInProgress(false);
@@ -249,7 +226,6 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
   };
 
   const simulateShake = () => {
-    // Multiple safeguards against repeated activation
     if (shakeDetector && !callInProgress && !isActivated && !callTimeoutRef.current) {
       console.log('Simulating shake event');
       shakeDetector.simulateShake();
@@ -258,9 +234,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     }
   };
 
-  // Manual call function is completely separate from the emergency call flow
   const manualCall = () => {
-    // Don't allow manual call if emergency call is already in progress
     if (callInProgress || isActivated || callTimeoutRef.current) {
       toast({
         title: "Call in progress",
@@ -282,36 +256,29 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
       return;
     }
     
-    // Format phone number
     const formattedNumber = contact.phoneNumber.replace(/[\s()-]/g, '');
     
-    // Try multiple approaches for the manual call too
     try {
-      // Create a temporary link element for the manual call
       const callLink = document.createElement('a');
       callLink.href = `tel:${formattedNumber}`;
       callLink.setAttribute('rel', 'noopener noreferrer');
-      callLink.setAttribute('target', '_blank'); // Try to force new context
+      callLink.setAttribute('target', '_blank');
       callLink.style.display = 'none';
       document.body.appendChild(callLink);
       callLink.click();
       
-      // Clean up after a short delay
       setTimeout(() => {
         document.body.removeChild(callLink);
       }, 1000);
       
-      // Also try the direct approach
       setTimeout(() => {
         window.location.href = `tel:${formattedNumber}`;
       }, 100);
     } catch (error) {
       console.error("Error making manual call:", error);
-      // Fallback to direct approach
       window.location.href = `tel:${formattedNumber}`;
     }
     
-    // Set a temporary cooldown
     setCallInProgress(true);
     setTimeout(() => {
       setCallInProgress(false);
@@ -324,7 +291,6 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     speak(`Calling ${contact.name}`);
   };
 
-  // Simple status text to show current state
   const getStatusText = () => {
     if (callInProgress || callTimeoutRef.current) {
       return "Call in progress or cooling down. Please wait...";
@@ -389,7 +355,6 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
             {callInProgress || callTimeoutRef.current !== null ? "Call in Progress..." : "Trigger Emergency Call"}
           </Button>
           
-          {/* Additional manual call button as backup */}
           <Button 
             variant="outline" 
             size="sm"
@@ -404,6 +369,11 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
           <p className="text-sm text-muted-foreground">
             {getStatusText()}
           </p>
+          
+          <div className="mt-4 text-xs text-muted-foreground">
+            <p>Shake your device vigorously from side to side to activate emergency call.</p>
+            <p className="mt-1">If shake detection isn't working, please use the button above.</p>
+          </div>
         </div>
       )}
     </div>
