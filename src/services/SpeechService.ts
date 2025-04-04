@@ -48,6 +48,7 @@ class SpeechRecognitionService {
   private recognition: any; // Using 'any' because browser compatibility varies
   private isListening: boolean = false;
   private callback: RecognitionCallback | null = null;
+  private restartTimeout: number | null = null;
   
   constructor() {
     // Check for browser support and initialize
@@ -68,24 +69,41 @@ class SpeechRecognitionService {
       
       this.recognition.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error);
-        if (event.error === 'no-speech') {
+        if (event.error === 'no-speech' || event.error === 'network') {
           // Restart if no speech was detected but we're still listening
           if (this.isListening) {
             this.stop();
-            this.start(this.callback!);
+            this.restartWithDelay(1000);
           }
         }
       };
       
       this.recognition.onend = () => {
         // Restart if we're still supposed to be listening
-        if (this.isListening) {
-          this.recognition.start();
+        if (this.isListening && !this.restartTimeout) {
+          this.restartWithDelay(300);
         }
       };
     } else {
       console.error('Speech recognition not supported in this browser');
     }
+  }
+  
+  restartWithDelay(delay: number) {
+    if (this.restartTimeout) {
+      window.clearTimeout(this.restartTimeout);
+    }
+    
+    this.restartTimeout = window.setTimeout(() => {
+      if (this.isListening) {
+        try {
+          this.recognition.start();
+        } catch (error) {
+          console.error('Error restarting speech recognition:', error);
+        }
+      }
+      this.restartTimeout = null;
+    }, delay);
   }
   
   start(callback: RecognitionCallback) {
@@ -109,6 +127,10 @@ class SpeechRecognitionService {
   stop() {
     if (this.recognition && this.isListening) {
       this.isListening = false;
+      if (this.restartTimeout) {
+        window.clearTimeout(this.restartTimeout);
+        this.restartTimeout = null;
+      }
       try {
         this.recognition.stop();
       } catch (error) {

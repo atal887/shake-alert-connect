@@ -6,6 +6,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { ShakeDetector } from '@/utils/shakeDetection';
 import { getPrimaryContact } from '@/utils/emergencyContacts';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { speak } from '@/services/SpeechService';
 
 interface EmergencyCallButtonProps {
   isShakeEnabled: boolean;
@@ -18,6 +19,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
   const [isMobile, setIsMobile] = useState(false);
   const [callInProgress, setCallInProgress] = useState(false);
   const callTimeoutRef = useRef<number | null>(null);
+  const callLinkRef = useRef<HTMLAnchorElement | null>(null);
   const { toast } = useToast();
   
   // Check if device is mobile
@@ -90,6 +92,21 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     };
   }, [isActivated, countdown, callInProgress]);
 
+  // Create a persistent hidden call link element
+  useEffect(() => {
+    const link = document.createElement('a');
+    link.setAttribute('rel', 'noopener noreferrer');
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    callLinkRef.current = link;
+    
+    return () => {
+      if (callLinkRef.current) {
+        document.body.removeChild(callLinkRef.current);
+      }
+    };
+  }, []);
+
   const handleShakeDetected = () => {
     // Multiple safeguards against repeated activation
     if (isActivated || callInProgress) {
@@ -105,6 +122,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
         description: "Please add an emergency contact in settings",
         variant: "destructive",
       });
+      speak("No emergency contact found. Please add an emergency contact in settings.");
       return;
     }
     
@@ -116,6 +134,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
       description: `Calling ${contact.name} in 5 seconds. Tap cancel to abort.`,
       variant: "destructive",
     });
+    speak(`Emergency call will start in 5 seconds. Tap cancel to abort.`);
   };
 
   const makeEmergencyCall = () => {
@@ -134,6 +153,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
         description: "No emergency contact found",
         variant: "destructive", 
       });
+      speak("No emergency contact found.");
       return;
     }
     
@@ -148,27 +168,35 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
       description: `Calling ${contact.name} at ${contact.phoneNumber}`,
       variant: "destructive",
     });
+    speak(`Calling emergency contact ${contact.name}`);
     
-    // Use a try/catch here to prevent any unexpected errors from breaking the app
+    // Use multiple approaches to maximize call reliability 
     try {
-      // We'll use a different approach for the call link
-      const callLink = document.createElement('a');
-      callLink.href = `tel:${formattedNumber}`;
-      callLink.setAttribute('rel', 'noopener noreferrer');
-      callLink.style.display = 'none'; // Hide the element
+      // First approach: Use the persistent link element
+      if (callLinkRef.current) {
+        callLinkRef.current.href = `tel:${formattedNumber}`;
+        
+        // Force a small delay before clicking to ensure DOM updates
+        setTimeout(() => {
+          if (callLinkRef.current) {
+            callLinkRef.current.click();
+          }
+        }, 100);
+      } else {
+        // Fallback: direct approach
+        window.location.href = `tel:${formattedNumber}`;
+      }
       
-      // Add to body, click, and then immediately remove to prevent multiple clicks
-      document.body.appendChild(callLink);
+      // Second approach: Create iframe as additional fallback
+      const callFrame = document.createElement('iframe');
+      callFrame.style.display = 'none';
+      document.body.appendChild(callFrame);
+      callFrame.src = `tel:${formattedNumber}`;
       
-      // Force a small delay before clicking to ensure DOM updates
+      // Remove the frame after a delay
       setTimeout(() => {
-        try {
-          callLink.click();
-          document.body.removeChild(callLink);
-        } catch (clickError) {
-          console.error("Error clicking call link:", clickError);
-        }
-      }, 100);
+        document.body.removeChild(callFrame);
+      }, 2000);
       
       // Add a longer lockout period to prevent repeated calls
       // Use the ref to store the timeout ID so we can clear it if needed
@@ -177,7 +205,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
         setCallInProgress(false);
         callTimeoutRef.current = null;
         console.log('Call cooldown period completed');
-      }, 10000); // 10 second cooldown
+      }, 15000); // 15 second cooldown
       
     } catch (error) {
       console.error("Error making emergency call:", error);
@@ -193,6 +221,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
         description: "There was a problem initiating the call. Please try the manual call button instead.",
         variant: "destructive",
       });
+      speak("Call error. Please use the manual call button instead.");
     }
   };
 
@@ -216,6 +245,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
       title: "Emergency call canceled",
       description: "Emergency sequence has been aborted",
     });
+    speak("Emergency call canceled");
   };
 
   const simulateShake = () => {
@@ -237,6 +267,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
         description: "Please wait before attempting another call",
         variant: "destructive",
       });
+      speak("Call in progress. Please wait.");
       return;
     }
     
@@ -247,14 +278,38 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
         description: "Please add an emergency contact in settings",
         variant: "destructive",
       });
+      speak("No emergency contact found. Please add an emergency contact in settings.");
       return;
     }
     
     // Format phone number
     const formattedNumber = contact.phoneNumber.replace(/[\s()-]/g, '');
     
-    // Using window.location.href instead of window.open for more reliable behavior
-    window.location.href = `tel:${formattedNumber}`;
+    // Try multiple approaches for the manual call too
+    try {
+      // Create a temporary link element for the manual call
+      const callLink = document.createElement('a');
+      callLink.href = `tel:${formattedNumber}`;
+      callLink.setAttribute('rel', 'noopener noreferrer');
+      callLink.setAttribute('target', '_blank'); // Try to force new context
+      callLink.style.display = 'none';
+      document.body.appendChild(callLink);
+      callLink.click();
+      
+      // Clean up after a short delay
+      setTimeout(() => {
+        document.body.removeChild(callLink);
+      }, 1000);
+      
+      // Also try the direct approach
+      setTimeout(() => {
+        window.location.href = `tel:${formattedNumber}`;
+      }, 100);
+    } catch (error) {
+      console.error("Error making manual call:", error);
+      // Fallback to direct approach
+      window.location.href = `tel:${formattedNumber}`;
+    }
     
     // Set a temporary cooldown
     setCallInProgress(true);
@@ -266,6 +321,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
       title: "Manual call initiated",
       description: `Calling ${contact.name}`,
     });
+    speak(`Calling ${contact.name}`);
   };
 
   // Simple status text to show current state
@@ -307,7 +363,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
       
       {isActivated ? (
         <div className="flex flex-col items-center">
-          <div className={`text-4xl font-bold mb-4 text-emergency animate-pulse-emergency`}>
+          <div className={`text-4xl font-bold mb-4 text-destructive animate-pulse`}>
             {countdown}
           </div>
           <Button 
