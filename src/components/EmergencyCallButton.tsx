@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Phone, PhoneOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -38,12 +39,16 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
   }, []);
 
   useEffect(() => {
+    // Use a lower threshold for better detection
     const detector = new ShakeDetector(handleShakeDetected, {
-      threshold: 8,
-      timeout: 1000,
+      threshold: 5, // Lowered from 8 to 5 for better sensitivity
+      timeout: 500, // Reduced from 1000 to 500ms for faster response
     });
     
     setShakeDetector(detector);
+    
+    // Debug shake detection
+    console.log('Shake detector initialized with threshold: 5');
     
     return () => {
       detector.stop();
@@ -54,7 +59,17 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     if (shakeDetector) {
       if (isShakeEnabled && !callInProgress && !isActivated) {
         shakeDetector.start();
-        console.log('Shake detection started');
+        console.log('Shake detection started - active and listening');
+        
+        // Debug info for confirming detection
+        window.addEventListener('devicemotion', (event) => {
+          if (event.acceleration) {
+            const { x, y, z } = event.acceleration;
+            if (x && y && z && (Math.abs(x) > 10 || Math.abs(y) > 10 || Math.abs(z) > 10)) {
+              console.log('Strong motion detected:', { x, y, z });
+            }
+          }
+        }, { once: false });
       } else {
         shakeDetector.stop();
         console.log('Shake detection stopped');
@@ -74,6 +89,8 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
     if (isActivated && countdown > 0) {
       timer = window.setTimeout(() => {
         setCountdown(countdown - 1);
+        // Speak countdown for accessibility
+        speak(`${countdown - 1}`, 0.6, 1.0);
       }, 1000);
     } else if (isActivated && countdown === 0 && !callInProgress) {
       makeEmergencyCall();
@@ -101,6 +118,8 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
   }, []);
 
   const handleShakeDetected = () => {
+    console.log('Shake detected function triggered!');
+    
     if (isActivated || callInProgress) {
       console.log('Ignoring shake - already activated or call in progress');
       return;
@@ -114,7 +133,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
         description: "Please add an emergency contact in settings",
         variant: "destructive",
       });
-      speak("No emergency contact found. Please add an emergency contact in settings.");
+      speak("No emergency contact found. Please add an emergency contact in settings.", 0.6, 1.0);
       return;
     }
     
@@ -126,7 +145,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
       description: `Calling ${contact.name} in 5 seconds. Tap cancel to abort.`,
       variant: "destructive",
     });
-    speak(`Emergency call will start in 5 seconds. Tap cancel to abort.`);
+    speak(`Emergency call will start in 5 seconds. Tap cancel to abort.`, 0.6, 1.0);
   };
 
   const makeEmergencyCall = () => {
@@ -144,7 +163,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
         description: "No emergency contact found",
         variant: "destructive", 
       });
-      speak("No emergency contact found.");
+      speak("No emergency contact found.", 0.6, 1.0);
       return;
     }
     
@@ -157,7 +176,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
       description: `Calling ${contact.name} at ${contact.phoneNumber}`,
       variant: "destructive",
     });
-    speak(`Calling emergency contact ${contact.name}`);
+    speak(`Calling emergency contact ${contact.name}`, 0.6, 1.0);
     
     try {
       if (callLinkRef.current) {
@@ -166,16 +185,19 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
         setTimeout(() => {
           if (callLinkRef.current) {
             callLinkRef.current.click();
+            console.log('Click triggered on call link');
           }
         }, 100);
       } else {
         window.location.href = `tel:${formattedNumber}`;
+        console.log('Using window.location for call');
       }
       
       const callFrame = document.createElement('iframe');
       callFrame.style.display = 'none';
       document.body.appendChild(callFrame);
       callFrame.src = `tel:${formattedNumber}`;
+      console.log('Call iframe added to document');
       
       setTimeout(() => {
         document.body.removeChild(callFrame);
@@ -200,7 +222,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
         description: "There was a problem initiating the call. Please try the manual call button instead.",
         variant: "destructive",
       });
-      speak("Call error. Please use the manual call button instead.");
+      speak("Call error. Please use the manual call button instead.", 0.6, 1.0);
     }
   };
 
@@ -222,7 +244,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
       title: "Emergency call canceled",
       description: "Emergency sequence has been aborted",
     });
-    speak("Emergency call canceled");
+    speak("Emergency call canceled", 0.6, 1.0);
   };
 
   const simulateShake = () => {
@@ -241,7 +263,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
         description: "Please wait before attempting another call",
         variant: "destructive",
       });
-      speak("Call in progress. Please wait.");
+      speak("Call in progress. Please wait.", 0.6, 1.0);
       return;
     }
     
@@ -252,7 +274,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
         description: "Please add an emergency contact in settings",
         variant: "destructive",
       });
-      speak("No emergency contact found. Please add an emergency contact in settings.");
+      speak("No emergency contact found. Please add an emergency contact in settings.", 0.6, 1.0);
       return;
     }
     
@@ -266,6 +288,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
       callLink.style.display = 'none';
       document.body.appendChild(callLink);
       callLink.click();
+      console.log('Manual call link clicked');
       
       setTimeout(() => {
         document.body.removeChild(callLink);
@@ -288,7 +311,7 @@ const EmergencyCallButton: React.FC<EmergencyCallButtonProps> = ({ isShakeEnable
       title: "Manual call initiated",
       description: `Calling ${contact.name}`,
     });
-    speak(`Calling ${contact.name}`);
+    speak(`Calling ${contact.name}`, 0.6, 1.0);
   };
 
   const getStatusText = () => {

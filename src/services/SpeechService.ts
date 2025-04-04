@@ -5,7 +5,7 @@
  */
 
 // Speech synthesis for text-to-speech
-export const speak = (text: string, rate: number = 0.8, pitch: number = 1.0, volume: number = 1.0) => {
+export const speak = (text: string, rate: number = 0.6, pitch: number = 1.0, volume: number = 1.0) => {
   if (!window.speechSynthesis) {
     console.error("Speech synthesis not supported in this browser");
     return;
@@ -27,16 +27,20 @@ export const speak = (text: string, rate: number = 0.8, pitch: number = 1.0, vol
     utterance.voice = preferredVoice;
   }
   
-  // Configure speech parameters for clarity
-  utterance.rate = rate; // Slower default rate (0.8 instead of 1.0)
+  // Configure speech parameters for clarity - slowed down for better understanding
+  utterance.rate = rate; // Slower default rate (0.6 instead of 0.8)
   utterance.pitch = pitch;
   utterance.volume = volume;
   utterance.lang = 'en-US';
+  
+  // Logging for debugging voice issues
+  console.log(`Speaking: "${text}" with rate: ${rate}, pitch: ${pitch}`);
   
   // Add event listener to handle completion
   let speakingTimeout: number | null = null;
   
   utterance.onend = () => {
+    console.log("Speech ended normally");
     if (speakingTimeout) {
       clearTimeout(speakingTimeout);
       speakingTimeout = null;
@@ -57,9 +61,10 @@ export const speak = (text: string, rate: number = 0.8, pitch: number = 1.0, vol
   // Set a safety timeout to prevent the speech from hanging
   speakingTimeout = window.setTimeout(() => {
     if (window.speechSynthesis.speaking) {
+      console.log("Safety timeout triggered - cancelling speech");
       window.speechSynthesis.cancel();
     }
-  }, text.length * 100 + 5000); // Estimate timeout based on text length
+  }, text.length * 100 + 7000); // Extended timeout for slower speech
   
   return {
     cancel: () => {
@@ -88,8 +93,11 @@ class SpeechRecognitionService {
     if (SpeechRecognition) {
       this.recognition = new SpeechRecognition();
       this.recognition.continuous = true;
-      this.recognition.interimResults = true; // Changed to true to get partial results
+      this.recognition.interimResults = true; // For partial results
       this.recognition.lang = 'en-US';
+      
+      // Improve speech recognition with higher confidence thresholds
+      this.recognition.maxAlternatives = 3;
       
       this.recognition.onresult = (event: any) => {
         // Get both interim and final results
@@ -123,6 +131,8 @@ class SpeechRecognitionService {
           this.restartWithDelay(1000);
         }
       };
+      
+      console.log("Speech recognition service initialized");
     } else {
       console.error('Speech recognition not supported in this browser');
     }
@@ -148,7 +158,7 @@ class SpeechRecognitionService {
   
   start(callback: RecognitionCallback) {
     if (!this.recognition) {
-      speak("Speech recognition is not supported in your browser.");
+      speak("Speech recognition is not supported in your browser.", 0.6, 1.0);
       return false;
     }
     

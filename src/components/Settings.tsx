@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/components/ui/use-toast';
+import { speak } from '@/services/SpeechService';
 
 interface SettingsProps {
   isShakeEnabled: boolean;
@@ -24,7 +25,7 @@ const SETTINGS_KEY = 'shake-alert-settings';
 
 const defaultSettings: AppSettings = {
   shakeEnabled: true,
-  shakeThreshold: 15,
+  shakeThreshold: 8, // Changed from 15 to 8 for better sensitivity
   countdownDuration: 5,
 };
 
@@ -55,21 +56,29 @@ const Settings: React.FC<SettingsProps> = ({ isShakeEnabled, onShakeEnabledChang
     const savedSettings = loadSettings();
     setSettings(savedSettings);
     onShakeEnabledChange(savedSettings.shakeEnabled);
+    
+    // Announce settings loaded
+    speak("Settings page loaded. You can adjust shake detection sensitivity here.", 0.6, 1.0);
   }, [onShakeEnabledChange]);
   
   const handleShakeEnabledChange = (enabled: boolean) => {
     setSettings({ ...settings, shakeEnabled: enabled });
     setHasChanges(true);
+    speak(enabled ? "Shake detection enabled" : "Shake detection disabled", 0.6, 1.0);
   };
   
   const handleShakeThresholdChange = (value: number[]) => {
     setSettings({ ...settings, shakeThreshold: value[0] });
     setHasChanges(true);
+    
+    const sensitivity = value[0] < 8 ? "high" : value[0] < 15 ? "medium" : "low";
+    speak(`Shake sensitivity set to ${sensitivity}`, 0.6, 1.0);
   };
   
   const handleCountdownChange = (value: number[]) => {
     setSettings({ ...settings, countdownDuration: value[0] });
     setHasChanges(true);
+    speak(`Countdown duration set to ${value[0]} seconds`, 0.6, 1.0);
   };
   
   const handleSaveSettings = () => {
@@ -81,11 +90,13 @@ const Settings: React.FC<SettingsProps> = ({ isShakeEnabled, onShakeEnabledChang
       title: "Settings saved",
       description: "Your preferences have been updated",
     });
+    speak("Settings saved successfully", 0.6, 1.0);
   };
   
   const handleResetSettings = () => {
     setSettings(defaultSettings);
     setHasChanges(true);
+    speak("Settings reset to default values", 0.6, 1.0);
   };
 
   return (
@@ -118,15 +129,15 @@ const Settings: React.FC<SettingsProps> = ({ isShakeEnabled, onShakeEnabledChang
             <div className="flex items-center justify-between">
               <Label htmlFor="shake-threshold" className="text-base">Shake Sensitivity</Label>
               <span className="text-sm font-medium">
-                {settings.shakeThreshold < 10 ? 'High' : 
-                 settings.shakeThreshold < 20 ? 'Medium' : 'Low'}
+                {settings.shakeThreshold < 8 ? 'High' : 
+                 settings.shakeThreshold < 15 ? 'Medium' : 'Low'}
               </span>
             </div>
             <Slider
               id="shake-threshold"
               disabled={!settings.shakeEnabled}
               value={[settings.shakeThreshold]}
-              min={5}
+              min={3} // Changed min from 5 to 3 to allow higher sensitivity
               max={25}
               step={1}
               onValueChange={handleShakeThresholdChange}
